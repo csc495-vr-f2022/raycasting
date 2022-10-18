@@ -1,7 +1,5 @@
 # Ray Casting
 
-Detailed explanation of this code can be found in the lecture [video](https://mediaspace.umn.edu/media/1_08l1zept).
-
 ## Topics
 
 1. Selection with ray casting
