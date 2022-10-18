@@ -7,7 +7,7 @@ import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3, Color3, Space } from "@babylonjs/core/Maths/math";
 import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
-import { WebXRControllerComponent } from "@babylonjs/core/XR/motionController/webXRControllercomponent";
+import { WebXRControllerComponent } from "@babylonjs/core/XR/motionController/webXRControllerComponent";
 import { WebXRInputSource } from "@babylonjs/core/XR/webXRInputSource";
 import { WebXRCamera } from "@babylonjs/core/XR/webXRCamera";
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
@@ -25,6 +25,7 @@ import "@babylonjs/core/Helpers/sceneHelpers";
 
 // Import debug layer
 import "@babylonjs/inspector";
+import { colorCorrectionPixelShader } from "@babylonjs/core/Shaders/colorCorrection.fragment";
 
 class Game 
 { 
@@ -35,6 +36,11 @@ class Game
     private xrCamera: WebXRCamera | null; 
     private leftController: WebXRInputSource | null;
     private rightController: WebXRInputSource | null;
+
+    private selectedObject: AbstractMesh | null;
+    private selectionTransform: TransformNode | null;
+
+    private laserPointer: LinesMesh | null;
 
     constructor()
     {
@@ -50,6 +56,11 @@ class Game
         this.xrCamera = null;
         this.leftController = null;
         this.rightController = null;
+
+        this.selectedObject = null;
+        this.selectionTransform = null;
+
+        this.laserPointer = null;
     
     }
 
@@ -93,7 +104,10 @@ class Game
             groundSize: 50,
             skyboxSize: 50,
             skyboxColor: new Color3(0, 0, 0)
-        });
+        }); 
+
+        environment!.ground!.isPickable = false;
+        environment!.skybox!.isPickable = false;
 
         // Creates the XR experience helper
         const xrHelper = await this.scene.createDefaultXRExperienceAsync({});
@@ -105,39 +119,106 @@ class Game
         xrHelper.teleportation.dispose();
         xrHelper.pointerSelection.dispose();
 
+        var laserPoints = [];
+        laserPoints.push(Vector3.Zero());
+        laserPoints.push(new Vector3(0, 0, 20));
+
+        this.laserPointer = MeshBuilder.CreateLines("laserPointer", {points: laserPoints}, this.scene);
+        this.laserPointer.color = Color3.Yellow();
+        this.laserPointer.alpha = .5;
+        this.laserPointer.visibility = 0;
+        this.laserPointer.isPickable = false;
+
+        this.selectionTransform = new TransformNode("selectionTransform", this.scene);
+        this.selectionTransform.parent = this.laserPointer;
+        
+        var cubeMaterial = new StandardMaterial("blueMaterial", this.scene);
+        cubeMaterial.diffuseColor = new Color3(.284, .73, .831);
+        cubeMaterial.specularColor = Color3.Black();
+        cubeMaterial.emissiveColor = new Color3(.284, .73, .831);
+
+        // var testCube = MeshBuilder.CreateBox("testCube", {size: .25}, this.scene);
+        // testCube.position = new Vector3(.6, 1.5, 2);
+        // testCube.material = cubeMaterial;
+        // testCube.edgesWidth = .3;
+
+        for(let i=0; i < 100; i++)
+        {
+            let cube = MeshBuilder.CreateBox("cube", {size: Math.random() * .3 + .1}, this.scene);
+            cube.position = new Vector3(Math.random() * 30 - 15, Math.random() * 5 + .2, Math.random() * 30 - 15);
+            cube.material = cubeMaterial;
+            cube.edgesWidth = .3;
+        }
+
+        xrHelper.input.onControllerAddedObservable.add((inputSource) => {
+            if(inputSource.uniqueId.endsWith("right"))
+            {
+                this.rightController = inputSource;
+                this.laserPointer!.parent = this.rightController.pointer;
+                this.laserPointer!.visibility = 1
+            }
+            else
+            {
+                this.leftController = inputSource;
+            }
+        });
+
+        xrHelper.input.onControllerRemovedObservable.add((inputSource) => {
+            this.laserPointer!.parent = null;
+            this.laserPointer!.visibility = 0;
+        });
+
 
         this.scene.debugLayer.show(); 
     }
 
-    /* Disabled and implemented in a custom ray caster
-    // Event handler for processing pointer selection events
-    private processPointer(pointerInfo: PointerInfo)
-    {
-        switch (pointerInfo.type) {
-
-            case PointerEventTypes.POINTERDOWN:
-
-                if(this.selectedObject)
-                {
-                    this.selectedObject.disableEdgesRendering();
-                    this.selectedObject = null;
-                }
-
-                // if an object was hit
-                if(pointerInfo.pickInfo?.hit)
-                {
-                    this.selectedObject = pointerInfo.pickInfo.pickedMesh;
-                    this.selectedObject!.enableEdgesRendering();
-                }
-            break;
-        }
-    }
-    */
-
-
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
+        this.processControllerInput();
+    }
+
+    private processControllerInput()
+    {
+        this.onRightTrigger(this.rightController?.motionController?.getComponent("xr-standard-trigger"));
+    }
+
+    private onRightTrigger(component?: WebXRControllerComponent)
+    {
+        if(component?.changes.pressed)
+        {
+            if(component?.pressed)
+            {
+                this.laserPointer!.color = Color3.Green();
+
+                var ray = new Ray(this.rightController!.pointer.position, this.rightController!.pointer.forward, 20);
+                var pickInfo = this.scene.pickWithRay(ray);
+
+                if(this.selectedObject)
+                {
+                    this.selectedObject?.disableEdgesRendering();
+                    this.selectedObject = null;
+                }
+
+                if(pickInfo?.hit)
+                {
+                    this.selectedObject = pickInfo!.pickedMesh;
+                    this!.selectedObject!.enableEdgesRendering();
+
+                    this.selectionTransform!.position = new Vector3(0, 0, pickInfo.distance);
+                    this.selectedObject!.setParent(this.selectionTransform);
+                }
+            }
+            else
+            {
+                this.laserPointer!.color = Color3.Yellow();
+    
+                if(this.selectedObject)
+                {
+                    this.selectedObject!.setParent(null);
+                }
+            }
+        }
     }
 
 
