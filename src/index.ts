@@ -46,6 +46,8 @@ class Game
 
     private laserPointer: LinesMesh | null;
 
+    private totalJoystickY: number = 0;
+
     constructor()
     {
         // Get the canvas element 
@@ -269,6 +271,9 @@ class Game
                     // Parent the object to the transform on the laser pointer
                     this.selectionTransform!.position = new Vector3(0, 0, pickInfo.distance);
                     this.selectedObject!.setParent(this.selectionTransform);
+
+                    // Emit a 50ms, 0.2 intensity haptic pulse
+                    this.rightController?.motionController?.pulse(0.2,50);
                 }
             }
             else
@@ -280,6 +285,9 @@ class Game
                 if(this.selectedObject)
                 {
                     this.selectedObject!.setParent(null);
+
+                    // Emit a 50ms, 0.2 intensity haptic pulse
+                    this.rightController?.motionController?.pulse(0.2,50);
                 }
             }
         }
@@ -290,15 +298,25 @@ class Game
     {
         // If we have an object that is currently attached to the laser pointer
         // and the thumbstick was pushed
-        if(component?.changes.axes && this.selectedObject && this.selectedObject.parent)
+        if(this.selectedObject && this.selectedObject.parent)
         {
             // Use delta time to calculate the proper speed
             // DeltaTime is the time, in milliseconds, between 
             // the current and the last frame
-            var moveDistance = -component.axes.y * (this.engine.getDeltaTime() / 1000) * 3;
+            var moveDistance = -component!.axes.y * (this.engine.getDeltaTime() / 1000) * 3;
 
             // Translate the object along the depth ray in world space
             this.selectedObject.translate(this.laserPointer!.forward, moveDistance, Space.WORLD);
+
+            // Maintain the totalJoystickY variable and emit a haptic pulse if
+            // a single unit boundry has been crossed
+            let oldTotalJoystickY = this.totalJoystickY;
+            this.totalJoystickY+=moveDistance*6;
+            if(Math.floor(this.totalJoystickY) != Math.floor(oldTotalJoystickY)) {
+                // Emit a 20ms, haptic pulse at an intensity determined by the joystick Y value
+                this.rightController?.motionController?.pulse(0.1+0.05*Math.abs(component!.axes!.y),20);
+            }
+
         }
     }
 
