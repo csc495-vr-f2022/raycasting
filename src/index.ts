@@ -269,6 +269,9 @@ class Game
                     // Parent the object to the transform on the laser pointer
                     this.selectionTransform!.position = new Vector3(0, 0, pickInfo.distance);
                     this.selectedObject!.setParent(this.selectionTransform);
+
+                    // Emit a 50ms, 0.5 intensity haptic pulse
+                    this.rightController?.motionController?.pulse(0.2,50);
                 }
             }
             else
@@ -280,6 +283,9 @@ class Game
                 if(this.selectedObject)
                 {
                     this.selectedObject!.setParent(null);
+
+                    // Emit a 50ms, 0.5 intensity haptic pulse
+                    this.rightController?.motionController?.pulse(0.2,50);
                 }
             }
         }
