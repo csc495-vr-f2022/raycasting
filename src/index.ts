@@ -46,6 +46,8 @@ class Game
 
     private laserPointer: LinesMesh | null;
 
+    private totalJoystickY: number = 0;
+
     constructor()
     {
         // Get the canvas element 
@@ -305,6 +307,16 @@ class Game
 
             // Translate the object along the depth ray in world space
             this.selectedObject.translate(this.laserPointer!.forward, moveDistance, Space.WORLD);
+
+            // Maintain the totalJoystickY variable and emit a haptic pulse if
+            // a single unit boundry has been crossed
+            let oldTotalJoystickY = this.totalJoystickY;
+            this.totalJoystickY+=moveDistance*6;
+            if(Math.floor(this.totalJoystickY) != Math.floor(oldTotalJoystickY)) {
+                // Emit a 20ms, haptic pulse at an intensity determined by the joystick Y value
+                this.rightController?.motionController?.pulse(0.1+0.05*Math.abs(component!.axes!.y),20);
+            }
+
         }
     }
 
