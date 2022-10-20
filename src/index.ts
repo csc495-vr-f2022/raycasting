@@ -290,12 +290,12 @@ class Game
     {
         // If we have an object that is currently attached to the laser pointer
         // and the thumbstick was pushed
-        if(component?.changes.axes && this.selectedObject && this.selectedObject.parent)
+        if(this.selectedObject && this.selectedObject.parent)
         {
             // Use delta time to calculate the proper speed
             // DeltaTime is the time, in milliseconds, between 
             // the current and the last frame
-            var moveDistance = -component.axes.y * (this.engine.getDeltaTime() / 1000) * 3;
+            var moveDistance = -component!.axes.y * (this.engine.getDeltaTime() / 1000) * 3;
 
             // Translate the object along the depth ray in world space
             this.selectedObject.translate(this.laserPointer!.forward, moveDistance, Space.WORLD);
